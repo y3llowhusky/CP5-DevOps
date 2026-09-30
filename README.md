@@ -15,7 +15,7 @@ Veja [o desenho macro](docs/arquitetura.md). O App Service atende front e API no
 - Bash em Linux ou WSL; login `az login`, assinatura selecionada por `az account set --subscription <ID>`.
 - Confira `az webapp list-runtimes --os linux` e altere o runtime no script se `DOTNETCORE|10.0` não estiver disponível na região. Confirme preços e oferta na assinatura antes de criar recursos; o script usa SQL Basic e plano B1, que podem gerar cobrança.
 
-## Implantação passo a passo
+## How To (Passo a passo)
 
 1. Crie um **repositório novo sem histórico** para esta pasta; não copie `.git`, VM, Oracle, Docker ou segredos de nenhum projeto anterior. Copie `.env.example` para `.env`. Ajuste os nomes (globais e exclusivos, especialmente `WEBAPP_NAME` e `SQL_SERVER_NAME`) e a `LOCATION`. Use sua própria assinatura. Mantenha `.env` fora do Git. Exporte `SQL_ADMIN_PASSWORD` na sessão ou deixe o script pedir a senha em terminal interativo. O login SQL deve seguir as exigências de complexidade da Azure. Nunca grave senhas ou connection strings em capturas, vídeos, comandos exibidos ou commits.
 
@@ -46,13 +46,6 @@ Veja [o desenho macro](docs/arquitetura.md). O App Service atende front e API no
 6. No portal, abra **Application Insights → Live metrics / Transaction search / Logs**. Execute novas requisições, aguarde a ingestão, mostre requests e dependências SQL coletadas. Exemplo KQL: `requests | take 20` e `dependencies | where type has 'SQL' | take 20` (ou tabelas `AppRequests`/`AppDependencies` no workspace). Mostre também **Azure SQL → Monitoring → Metrics** ou Query Editor com alterações; a monitoração do app vem do SDK OpenTelemetry. Cargas e amostragem podem afetar a visibilidade imediata das dependências; confirme antes de gravar a tomada final.
 
 7. Após filmar, remova a infraestrutura se não for mais necessária: `bash scripts/03_remocao_infra.sh`; o script requer digitar o nome do Resource Group e espera a exclusão. Faça backup de qualquer dado que queira manter antes.
-
-## Evidências e entrega
-
-- Grave em pelo menos **720p, com explicação falada** e mostre, nesta ordem: criação na nuvem, deploy, cada operação CRUD e a tabela SQL após cada uma, monitoramento do app e do banco e coleta no Application Insights.
-- Publique código completo, `scripts/ddl.sql`, scripts CLI, desenho macro, [JSON das operações](docs/json-operacoes.md), este how-to e o link do vídeo no repositório novo acessível ao professor.
-- Faça o PDF **`<nome_grupo>_webapp.pdf`** com **somente**: nome exato do grupo, nome e RM dos integrantes confirmados, link do novo GitHub e link público do vídeo. Não é possível finalizar esse PDF sem esses dados e a gravação. O representante do grupo faz o upload no Teams.
-- Confirme composição do grupo (há READMEs com três integrantes no Argos e cinco no Fidelis), prazo e feedback da Sprint 3 com a equipe. Não assuma que o bônus DimDim vale para Argos.
 
 ## Verificações locais
 
