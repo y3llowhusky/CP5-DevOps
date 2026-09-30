@@ -8,8 +8,6 @@ Este repositório contém o código fonte, o esquema SQL, os scripts Azure CLI p
 
 ![Arquitetura da solução Argos no Azure](docs/arquitetura-argos.png)
 
-[Desenho editável em draw.io](docs/arquitetura-argos.drawio) · [Descrição da arquitetura](docs/arquitetura.md)
-
 O navegador acessa a interface e a API no **Azure App Service Linux**. A API usa **Entity Framework Core** para ler e gravar no **Azure SQL Database**. As tabelas `dbo.ZONAS_RISCO` e `dbo.ALERTAS` têm relacionamento 1:N por `ALERTAS.ZonaRiscoId`. Requisições e dependências são encaminhadas ao **Application Insights**, vinculado a um **Log Analytics Workspace**. O banco é um serviço PaaS, sem contêiner ou máquina virtual de SQL.
 
 A imagem apresenta os nomes usados no ambiente de referência. Os scripts derivam os nomes da configuração local; outros RMs produzem nomes diferentes.
@@ -28,7 +26,7 @@ A imagem apresenta os nomes usados no ambiente de referência. Os scripts deriva
 | Azure CLI, Bash e `az webapp deploy` | Criação de recursos e publicação |
 | `sqlcmd` | Execução automatizada do DDL |
 
-O código de `ZonaRisco` e `NivelRisco` foi adaptado de [ArgosApi-NET](https://github.com/Driven-Soft/ArgosApi-NET). A estrutura dos scripts foi baseada em [Fidelis-DevOps](https://github.com/Driven-Soft/Fidelis-DevOps), projeto separado desta aplicação.
+O código de `ZonaRisco` e `NivelRisco` foi adaptado de [ArgosApi-NET](https://github.com/Driven-Soft/ArgosApi-NET). 
 
 ## Organização do repositório
 
@@ -61,11 +59,11 @@ O arquivo [scripts/ddl.sql](scripts/ddl.sql) define as duas tabelas, a chave est
 - Para compactar a publicação: **`zip` no Linux/WSL** ou **PowerShell e `cygpath` no Git Bash do Windows**. No Git Bash com PowerShell disponível, `zip` não precisa ser instalado.
 - Conectividade com Azure, NuGet e Azure SQL na porta TCP 1433. O script 02 consulta `api.ipify.org` para identificar o IP público da máquina; a variável `SQL_CLIENT_IP` permite informá-lo manualmente.
 
-Os valores padrão usam App Service Plan **B1**, Azure SQL Database **Basic** e região **Brazil South**. Esses recursos podem gerar custos enquanto estiverem ativos.
+Os valores padrão usam App Service Plan **B1** e Azure SQL Database **Basic**. Esses recursos podem gerar custos enquanto estiverem ativos.
 
-### Instalação no Windows
+### Instalação dos pré-requisitos no Windows
 
-Execute no PowerShell os comandos referentes aos componentes ausentes:
+Execute no PowerShell os comandos referentes aos componentes ausentes, caso necessário:
 
 ```powershell
 winget install --exact --id Git.Git
@@ -89,43 +87,49 @@ command -v cygpath
 
 Instale Azure CLI, .NET SDK 10 e `sqlcmd` conforme a distribuição. No Ubuntu/WSL, `sudo apt-get install curl zip` instala os outros utilitários necessários. Confirme `dotnet --version`, `az version`, `sqlcmd --version`, `curl --version` e `zip -v`.
 
-## Como implantar
+## Como testar a solução (How To)
 
-Os comandos a seguir partem da **raiz deste projeto**, onde estão `README.md`, `scripts/` e `src/`.
+Os comandos a seguir devem ser executados na **raíz deste projeto**, onde estão `README.md`, `scripts/` e `src/`.
 
 ### 1. Configurar o ambiente
+
+Copie o .env.example em .env:
 
 ```bash
 cp .env.example .env
 ```
 
-Edite `.env` com seu RM e o login que será criado como administrador do novo servidor Azure SQL:
+Edite `.env` com seu RM e o login que será criado como administrador do novo servidor Azure SQL, por exemplo:
 
 ```dotenv
 RM=rm123456
-LOCATION=brazilsouth
+LOCATION=southafricanorth
 SQL_ADMIN_USER=admin_argos
-# SQL_ADMIN_PASSWORD='defina_uma_senha_forte'
+SQL_ADMIN_PASSWORD=senha_forte_exemplo123#
 # SQL_CLIENT_IP=203.0.113.10
 ```
 
-`RM` deve conter `rm` e seis dígitos. A senha SQL pode ficar no `.env` ou ser digitada, sem aparecer na tela, quando os scripts 01 e 02 a solicitarem. Se optar pelo prompt, informe **a mesma senha** em ambos. O login e a senha são definidos na criação do servidor; não é necessário obter credenciais de um banco preexistente.
+`RM` deve conter `rm` e seis dígitos. O login e a senha SQL devem atender os requisitos de credenciais Azure SQL. Só é necessário informar o `SQL_CLIENT_IP` manualmente (removendo o `#` na frente e informando o IP da máquina do cliente) caso o script 02 falhe em localizar seu IP público na execução, seja por conflito com firewall ou por conta de VPN.
 
-Por padrão, o script cria `rg-<RM>-argos-cp5`, `<RM>-argos-api`, `<RM>-argos-sql`, `<RM>-argos-logs`, `<RM>-argos-insights` e o banco `Argos`. `WEBAPP_NAME` e `SQL_SERVER_NAME` precisam ser exclusivos globalmente; podem ser personalizados no `.env`, assim como os tamanhos e a região. Veja as opções em [.env.example](.env.example). O arquivo `.env` é ignorado pelo Git e **não deve ser publicado**.
+Por padrão, o script cria `rg-<RM>-argos-cp5`, `<RM>-argos-api`, `<RM>-argos-sql`, `<RM>-argos-logs`, `<RM>-argos-insights` e o banco `Argos`. `WEBAPP_NAME` e `SQL_SERVER_NAME` precisam ser exclusivos globalmente; podem ser personalizados no `.env`, assim como os tamanhos e a região. O arquivo `.env` é ignorado pelo Git (via `.gitignore`) e **não deve ser publicado**.
 
 ### 2. Criar os recursos Azure
 
+Faça login na Azure pelo Git Bash:
+
 ```bash
 az login
-az account list -o table
-az account set --subscription '<ID-DA-ASSINATURA>'
-az account show -o table
+```
+
+Depois, execute o primeiro script:
+
+```
 bash scripts/01_criacao_infra.sh
 ```
 
 O script 01 registra os provedores necessários e cria o Resource Group, o plano e a Web App Linux, o servidor e o banco Azure SQL, a regra de acesso para serviços Azure, o Log Analytics Workspace e o Application Insights. Ele verifica recursos existentes antes de criá-los, permitindo repetir a execução após uma falha de provisionamento.
 
-**O banco criado no passo 2 ainda não contém as tabelas.** O script 02 aplica o DDL automaticamente antes de compilar e publicar a aplicação.
+**O banco criado no passo 2 do primeiro script ainda não contém as tabelas.** É o script 02 que aplica o DDL automaticamente antes de compilar e publicar a aplicação.
 
 ### 3. Aplicar o DDL e publicar a aplicação
 
@@ -137,34 +141,20 @@ O script 02 identifica o IP público da máquina, cria uma regra de firewall par
 
 O DDL usa `IF OBJECT_ID ... IS NULL`: reexecutar o script 02 mantém as tabelas e os dados já existentes. Depois do deploy, a URL da aplicação aparece no terminal. O endpoint `/health` confirma a resposta HTTP da aplicação; a conexão com o banco é verificada pelas operações de dados descritas abaixo.
 
-#### Alternativa para aplicar o DDL sem `sqlcmd`
-
-O fluxo normal **não exige intervenção no Query Editor**. Caso `sqlcmd` não esteja disponível, abra o banco `Argos` no portal Azure, entre em **Query editor**, autentique com o administrador configurado no `.env` e execute todo o conteúdo de [scripts/ddl.sql](scripts/ddl.sql). Confirme as tabelas com:
-
-```sql
-SELECT name FROM sys.tables WHERE name IN ('ZONAS_RISCO', 'ALERTAS');
-```
-
-Se houver bloqueio de rede, libere o IP público da máquina nas regras de firewall do **servidor SQL**. Após a confirmação das tabelas, publique sem repetir o DDL:
-
-```bash
-SKIP_DDL=1 bash scripts/02_build_deploy.sh
-```
-
 ### 4. Acessar a aplicação e a API
 
-Abra a URL HTTPS exibida pelo script 02. A página inicial contém a interface de gerenciamento. A API usa o mesmo domínio e disponibiliza as rotas:
+Abra a URL HTTPS exibida no terminal Bash no final do script 02 (algo como `https://rm{SEU_RM}-argos-api.azurewebsites.net`). A página inicial contém a interface de gerenciamento. A API usa o mesmo domínio e disponibiliza as rotas:
 
 | Recurso | Listar | Consultar ID | Criar | Atualizar | Excluir |
 | --- | --- | --- | --- | --- | --- |
 | Zonas de risco | `GET /zonas-risco` | `GET /zonas-risco/{id}` | `POST /zonas-risco` | `PUT /zonas-risco/{id}` | `DELETE /zonas-risco/{id}` |
 | Alertas | `GET /alertas` | `GET /alertas/{id}` | `POST /alertas` | `PUT /alertas/{id}` | `DELETE /alertas/{id}` |
 
-POST retorna HTTP 201 e o ID criado, GET e PUT retornam 200, e DELETE retorna 204. Os valores de risco aceitos são `BAIXO`, `MEDIO`, `ALTO` e `CRITICO`. Para criar um alerta, use o ID de uma zona existente. Uma zona com alertas associados não pode ser excluída antes deles; a API retorna HTTP 409. Os exemplos de requisições e respostas de cada operação estão em [docs/json-operacoes.md](docs/json-operacoes.md).
+POST retorna HTTP 201 e o ID criado, GET e PUT retornam 200, e DELETE retorna 204. Os valores de risco aceitos são `BAIXO`, `MEDIO`, `ALTO` e `CRITICO`. Para criar um alerta, use o ID de uma zona existente. Uma zona com alertas associados não pode ser excluída antes de excluir os alertas associados; a API retorna HTTP 409. Os exemplos de requisições e respostas de cada operação estão em [docs/json-operacoes.md](docs/json-operacoes.md).
 
 ### 5. Conferir os dados no Azure SQL
 
-No [portal Azure](https://portal.azure.com), abra **SQL databases → Argos → Query editor** e entre com o administrador SQL definido no `.env`. Execute as consultas separadamente:
+No [portal Azure](https://portal.azure.com), logado na conta em que os recursos foram criados, abra **Resource Groups → Resource group criado para este projeto → SQL Database do Argos → Query Editor** e entre com o usuário administrador SQL definido no `.env`. Execute as consultas separadamente:
 
 ```sql
 SELECT * FROM dbo.ZONAS_RISCO ORDER BY Id;
@@ -183,9 +173,29 @@ JOIN dbo.ZONAS_RISCO AS z ON z.Id = a.ZonaRiscoId
 ORDER BY a.Id;
 ```
 
-Após POST, o registro aparece na tabela; após PUT, a consulta retorna os valores atualizados; após DELETE, não retorna o registro excluído. A leitura GET consulta os dados persistidos. O Query Editor serve para **inspeção do banco** neste passo; não é necessário para o deploy padrão.
+Após POST, o registro aparece na tabela; após PUT, a consulta retorna os valores atualizados; após DELETE, não retorna o registro excluído. A leitura GET consulta os dados persistidos. O Query Editor serve para **inspeção do banco** neste passo.
 
-### 6. Consultar a telemetria
+### 6. Verificar persistência dos dados no banco Azure SQL Database
+
+Crie ou altere registros no painel da aplicação, e anote os IDs e os valores dos registros.
+
+Depois, pare a aplicação:
+
+```bash
+az webapp stop -g rg-rm563717-argos-cp5 -n rm563717-argos-api
+az webapp show -g rg-rm563717-argos-cp5 -n rm563717-argos-api --query state -o tsv
+```
+
+Com a aplicação parada, consulte os mesmos IDs no Query Editor do banco Azure SQL Database e verifique os valores. Os registros devem continuar intactos lá.
+
+Por fim, inicie novamente a aplicação e consulte os mesmos registros pela interface da solução ou pelos endpoints GET:
+
+```bash
+az webapp start -g rg-rm563717-argos-cp5 -n rm563717-argos-api
+az webapp show -g rg-rm563717-argos-cp5 -n rm563717-argos-api --query state -o tsv
+```
+
+### 7. Consultar a telemetria
 
 No portal, abra o recurso **Application Insights** criado pelo script 01. Gere algumas requisições na interface ou na API e consulte **Transaction search** ou **Logs**. Por exemplo:
 
@@ -226,6 +236,11 @@ O script solicita a confirmação pelo nome do Resource Group e exclui **todo o 
 | `/health` responde, mas uma operação de dados falha | Confirme as duas tabelas no Azure SQL, as credenciais configuradas na Web App e os logs da aplicação. |
 | Telemetria vazia | Gere novas requisições, confira a configuração do Application Insights na Web App e aguarde a ingestão. |
 
-## Segurança
+## Equipe DrivenSoft
 
-O `.env` contém credenciais locais e não deve ser versionado. A aplicação deste projeto não implementa autenticação de usuários na interface ou na API. Para um ambiente de produção, são necessários controle de acesso, gestão de segredos e revisão das regras de rede do Azure SQL.
+Essa solução foi desenvolvida pela Equipe DrivenSoft:
+- Felipe Bezerra Beatrici - RM564723
+- Max Hayashi Batista - RM563717
+- Henrique Cunha Torres - RM565119
+- Yasmin Nathalin Miranda dos Santos - RM561365
+- Lucas da Silva Lima - RM562118
